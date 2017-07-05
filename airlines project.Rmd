@@ -1,0 +1,326 @@
+---
+title: "Airlines Project"
+output:
+  html_notebook: default
+  html_document: default
+  word_document: default
+---
+
+# Introduction
+
+This report aims to analyse and interpret the difference in prices of Premium and Economy Class airline tickets.In this project, i have used a dataset which contains information pertaining to six leading airlines. 
+
+# Aim
+
+To understand the factors that drive the differences between Premium and Economy Class airline tickets. 
+
+# Libraries Used
+```{r}
+library(ggplot2)
+library(psych)
+library(lattice)
+library(car)
+```
+
+# Dataset 
+
+Reading the Dataset
+```{r}
+airlines <-read.csv(paste("C://Users//surya suresh//Downloads//SixAirlines (1).csv"))
+attach(airlines)
+```
+
+The dataset is now stored in the airlines variable which i will use in the future for all operations on the data.
+
+# Understanding the Dataset
+```{r}
+str(airlines)
+describe(airlines)
+```
+
+We understand  that the dataset containes data regarding 6 different airlines, namely, Air France, British Airways, Delta, Jet Airways, Singapore Airlines and Virgin Airlines. 
+
+These airlines have both international and domestic flights and this could prove to be important in understanding the pricing dynamics. 
+
+There are other factors such as Pitch and Width which are different for Premium and Economy Class and these could form a part of our hypothesis for the difference in prices.
+
+Finally, each airplane has been assigned a quality rating (out of 10).
+
+# Splitting the dataset
+
+I am splitting the dataset into International and Domestic Flights in order to individually analyse the two groups
+```{r}
+table(airlines$INTERNATIONAL)
+```
+
+A large majority of the flights are international flights 
+```{r}
+international<-airlines[which(airlines$INTERNATIONAL==1),]
+domestic<-airlines[which(airlines$INTERNATIONAL==0),]
+```
+
+# Analysing the International dataset
+
+Firstly, i am plotting histograms of a few important parameters.
+```{r}
+histogram(FLIGHT_DURATION,international, ylab="count", col="blue",breaks=20,type=c("count"))
+histogram(MONTH,international,ylab="count",type=c("count"))
+histogram(N,international,xlab="Number of Seats",ylab="count",col="green",type=c("count"))
+```
+
+The Flight duration shows a pattern similar to a double-peaked histogram. 
+Airplanes have mostly flown in moths 1,2,3 and most aircrafts have between 150 and 250 seats.
+
+# Understanding the Price Difference
+
+```{r}
+par(mfrow=c(1,2))
+hist(international$PRICE_ECONOMY,main = "Histogram of Eco Class Price",ylab = "count",xlab = "Economy Class Price",col = "red")
+hist(international$PRICE_PREMIUM,main= "Histogram of Prem Class Price", ylab = "count",xlab = "Premium Class Price",col = "blue")
+```
+
+
+In Economy Class, most of the ticket prices are in the range 0 - 2000. In premium class, ticket prices are evenly distributed between 0 - 4000. 
+
+# Impact of Flight Duration
+
+Adding a column named "diff" which holds the difference between the prices of premium class and economy class.
+```{r}
+international$diff <- international$PRICE_PREMIUM - international$PRICE_ECONOMY
+```
+
+```{r}
+g<-ggplot(international,aes(x=FLIGHT_DURATION,y=diff)) + geom_point()+geom_smooth(method = "lm")
+plot(g)
+```
+
+We notice that there is an increase in price difference with an increase in the duration of the flight. However, there is an outlier which i will remove.
+
+```{r}
+g+xlim(c(0,15)) + ylim(c(0,2000))
+```
+
+We notice a definite upward trend in the price difference with an increase in flight duration.
+
+Hypothesis 1 : The difference in prices, particularly in international flights, arises due to increased flight duration.
+
+# Impact of Quality
+
+In this section, i hope to discover the impact of quality on the price dynamics. 
+```{r}
+international.df<-as.data.frame(international)
+mean.diff<-aggregate(diff~QUALITY,data=international.df,mean)
+mean.diff
+```
+We note that the price difference is minimum for a quality rating of 10. Let us analyse the quality ratings of individual air service providers to understand this finding.
+
+```{r}
+aggregate(cbind("Quality"=international$QUALITY,"Price Difference"=international$diff),by=list("Airline"=international$AIRLINE),mean)
+```
+The data from Jet Airways may be the cause of the skew in the data and this will be analysed in a future section.
+
+# Impact of The Number of Seats
+
+In this section, i will seek to analyse whether there is a correlation between price difference and the percentage of premium seats.
+
+Firstly, i will create an additional column to hold the percentage of premium seats in an airplane.
+```{r}
+international$percent_Premium <- (international$SEATS_PREMIUM/international$N)*100
+aggregate(international$percent_Premium,by=list("Airplane"=international$AIRLINE),mean)
+```
+The above table shows that all airline companies have a similar percentage of premium seats.
+
+```{r}
+l<-ggplot(international,aes(x=percent_Premium,y=diff)) + geom_point()+geom_smooth(method = "lm")
+l+xlim(c(0,35)) + ylim(c(0,2000))
+```
+
+Hypothesis 2 - There is an increase in the price difference between premium and economy class seats as the percetage of premium seats increase.
+
+This is something we need to analyse further and this will be done in a later section.
+
+# Impact of Width and Pitch
+
+Creating 2 new columns to store the difference in widths and pitch.
+
+```{r}
+international$Wdiff <- international$WIDTH_PREMIUM - international$WIDTH_ECONOMY
+international$Pdiff <- international$PITCH_PREMIUM - international$PITCH_ECONOMY
+```
+
+Observing whether the price difference has resulted from the difference in widths
+```{r}
+aggregate(international$diff,by=list("Width Difference"=international$Wdiff),mean)
+```
+
+We note that the price difference is maximum when the seat width difference is 3. Further, the second highest price difference is when the seat width difference is 1. There appears to be limited correlation between seat width and price difference.
+
+Observing whether the price difference has resulted from the difference in pitch
+```{r}
+aggregate(international$diff,by=list("Pitch Difference"=international$Pdiff),mean)
+```
+
+We note that the price difference is maximum when the pitch difference is 7 and decreases for a pitch difference of 10.
+
+Tabulating the number of flights by different air service providers.
+
+```{r}
+table(international$AIRLINE)
+```
+
+This data will help us identify whether a particular aircraft is responsible for a skew in the data.
+
+Let us find out which airplanes provide the maximum seat width difference and pitch difference and also compare the price differences.
+```{r}
+aggregate(cbind("Width Difference"=international$Wdiff,"Pitch Difference"=international$Pdiff,"Price Difference"=international$diff),by=list("Airline"=international$AIRLINE),mean)
+```
+It is apparent that the price difference in Jet Airways is very low despite the increased pitch and seat width.This is something that we ought to analyse further and i will continue this discussion in the next section.
+
+# Impact of Jet Airways 
+
+Factor list for the Air service providers
+```{r}
+international$airline_factor<-factor(international$AIRLINE,levels = c("AirFrance","British","Delta","Jet","Singapore","Virgin"),labels=c(1,2,3,4,5,6))
+```
+
+Neglecting Jet Airways:
+```{r}
+international_NoJet <- international[which(international$airline_factor!=4),]
+```
+
+Checking Impact of Width difference:
+```{r}
+aggregate(international_NoJet$diff,by=list("Width Difference"=international_NoJet$Wdiff),mean)
+```
+Checking Impact of Pitch Difference:
+```{r}
+aggregate(international_NoJet$diff,by=list("Pitch Difference"=international_NoJet$Pdiff),mean)
+```
+
+Checking Impact of Quality:
+```{r}
+aggregate(international_NoJet$diff,by=list("Quality"=international_NoJet$QUALITY),mean)
+```
+
+The results obtained, by neglecting Jet Airways seem more in line with conventional wisdom.
+
+Hypothesis 3 - An increase in seat width is responsible for the difference in prices(excluding Jet Airways)
+
+Hypothesis 4 - An increase in pitch is responsible for the difference in prices(excluding Jet Airways)
+
+Hypothesis 5 - An increase in Quality is responsible for the difference in prices(excluding Jet Airways)
+
+We have developed 5 hypotheses and we can now move on to testing these hypotheses. This will enable us to understand the factors that exert the greatest influence on the pricing dynamics of international flights.
+
+# Review of Hypotheses
+
+Hypothesis 1 : The difference in prices, particularly in international flights, arises due to increased flight duration.
+
+Hypothesis 2 - There is an increase in the price difference between premium and economy class seats as the percetage of premium seats increase.
+
+Hypothesis 3 - An increase in seat width is responsible for the difference in prices(excluding Jet Airways)
+
+Hypothesis 4 - An increase in pitch is responsible for the difference in prices(excluding Jet Airways)
+
+Hypothesis 5 - An increase in Quality is responsible for the difference in prices(excluding Jet Airways)
+
+# Testing the Hypotheses (Including Jet Airways)
+
+I am developing a linear regression model using the 5 parameters mentioned in the hypothesis section.
+
+The dependant variable is the price difference between premium and economy class seats.
+```{r}
+model<-lm(diff~FLIGHT_DURATION+Wdiff+Pdiff+QUALITY+percent_Premium,data=international)
+summary(model)
+```
+
+From the model summary, we understand that Flight Duration is the major factor influencing pricing dynamics. The difference in seat width and percentage of premium seats are other factors which may be responsible for the difference in prices.
+
+The QUALITY factor appears to be perfectly correlated with one of the other independant variables. 
+```{r}
+cor(international$QUALITY,international$Pdiff)
+```
+Thus, it appears that the Quality factor is perfectly correlated with the difference in Pitch.
+
+Developing a new model based on these observations:
+```{r}
+model1<-lm(diff~Wdiff+FLIGHT_DURATION+percent_Premium,data=international)
+summary(model1)
+```
+
+Based on this model, we can conclude that the price difference in international flights arises primarily due to the increase in Flight Duration and Seat Width.
+
+# Testing the Hypotheses (Excluding Jet Airways)
+
+We noted that the JET Airways data caused a skew in a few parameters. Hence, i will attempt to develop a model to fit the data from other air service providers.
+
+```{r}
+international_NoJet$percent_Premium<-(international_NoJet$SEATS_PREMIUM/international_NoJet$N)*100
+```
+
+```{r}
+model_nojet<-lm(diff~FLIGHT_DURATION+Wdiff+Pdiff+QUALITY+percent_Premium,data=international_NoJet)
+summary(model_nojet)
+```
+From the above summary, it is evident that increased flight duration, increased pitch and increased seat width influence the pricing dynamics in non-Jet Airways flights.
+
+# Inferences for International Flights
+
+The factors that cause the difference in price between premium and economy seats are:
+
+1. Flight Duration
+2. Seat Width
+3. Pitch (Except in Jet Airways)
+
+The percentage of premium seats in an airplane also plays a minor role in influencing pricing dynamics. 
+
+# Domestic Flights
+
+All our analysis, upto this point, has focused on the dataset pertaining to international flights. The number of domestic flights numbers only 40,a much smaller number when compared to our international data set.
+
+Creating a domestic data set:
+```{r}
+domestic<-airlines[which(airlines$INTERNATIONAL==0),]
+domestic$diff<-domestic$PRICE_PREMIUM-domestic$PRICE_ECONOMY
+domestic$Wdiff<-domestic$WIDTH_PREMIUM-domestic$WIDTH_ECONOMY
+domestic$Pdiff<-domestic$PITCH_PREMIUM-domestic$PITCH_ECONOMY
+domestic$percent_Premium <- (domestic$SEATS_PREMIUM/domestic$N)*100
+```
+Understanding the price difference in domestic flights
+```{r}
+histogram(domestic$diff,xlab="Price Difference",type="count")
+```
+We note that the price difference in domestic flights is lower when compared to international flights.
+
+It makes sense that the same factors that influenced the pricing dynamics in the international case would do so in the case of domestics airlines as well.
+
+Tabluating the dependant factors 
+```{r}
+aggregate(cbind("Width Difference"=domestic$Wdiff,"Pitch Difference"=domestic$Pdiff,"Price Difference"=domestic$diff),by=list("Airline"=domestic$AIRLINE),mean)
+```
+We note that only Delta operates in the domestic segement.Further, we see that there is no difference in the seat width. 
+
+Hence,let us create a linear model with FLIGHT DURATION , PITCH and the percentage of Premium seats as independant variables.
+```{r}
+model_domestic<-lm(diff~FLIGHT_DURATION+Pdiff+percent_Premium,data=domestic)
+summary(model_domestic)
+```
+From the model summary, we note that Flight Duration continues to be the factor which influences pricinng dynamics. The percentage of premium seats also plays a minor role in the price difference. 
+
+# Inferences for Domestic Flights
+
+1. Flight duration is the major factor that influences pricing dynamics.
+2. Delta is the only airlines which operates domestic flights. Thus, we do not have enough data to arrive at meaningful conclusions.
+3. Seat width is the same for economy and premium class seats. Pitch is slightly greater in premium class.
+
+# Summary
+
+1. The difference in prices of Premium and Economy Class seats increases with an increase in flight duration. This is in line with conventional wisdom which suggests that people would prefer comfortable seats during a longer flight. Greater demand for these seats naturally increases prices.
+
+2. In international flights, premium class seats are more comfortable owing to greater pitch and seat width. These factors appear to be responsible for the price difference in most airlines.
+
+3. Jet Airways is an exception to the rule as they provide comfortable seats at a nominal rate.
+
+
+
+
